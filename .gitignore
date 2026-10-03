@@ -1,0 +1,44 @@
+# Dependencies / generated output
+node_modules/
+dist/
+build/
+coverage/
+.cache/
+.tmp/
+temp/
+*.log
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Proprietary / operator-supplied research input — never place in Git
+private-input/
+original-game/
+original-game-files/
+research-input/
+proprietary-input/
+moo2-installation/
+*.lbx
+*.LBX
+*.exe
+*.EXE
+*.com
+*.COM
+*.iso
+*.ISO
+*.cue
+*.CUE
+*.img
+*.IMG
+*.7z
+*.rar
+
+# Local game/runtime state
+*.sav
+*.SAV
+
+# Editor / OS
+.DS_Store
+Thumbs.db

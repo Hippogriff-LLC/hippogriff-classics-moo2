@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "project_id": "hippogriff-classics-moo2",
+  "display_name": "Hippogriff Classics \u2014 Master of Orion II",
+  "canonical_path": "/srv/csjs/repositories/hippogriff-classics-moo2",
+  "primary_branch": "main",
+  "remote": "git@github.com:Hippogriff-LLC/hippogriff-classics-moo2.git",
+  "visibility": "public",
+  "unity1": {
+    "port_block": {
+      "start": 3180,
+      "end": 3189
+    },
+    "services": [
+      {
+        "name": "web",
+        "port": 3180,
+        "protocol": "tcp"
+      }
+    ]
+  },
+  "production_deployment_authorized": false,
+  "proprietary_game_assets_in_repository": false
+}

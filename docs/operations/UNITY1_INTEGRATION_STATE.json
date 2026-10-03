@@ -1,0 +1,40 @@
+{
+  "canonical_repository_path": "/srv/csjs/repositories/hippogriff-classics-moo2",
+  "context_handoff_include_local_record": true,
+  "project_governance_entrypoint": "README.md / AGENTS.md / tasks/",
+  "project_id": "hippogriff-classics-moo2",
+  "project_local_best_practices_and_pitfalls": [
+    "Original MOO2 research input stays outside the repository tree.",
+    "Use tracked-files-only context exports.",
+    "Use csjs-agent for governed coding work.",
+    "Use Unity1 port 3180 and loopback/Tailscale-only binding for local browser QA."
+  ],
+  "project_local_commands": {
+    "validate": "python3 tools/validate.py",
+    "context_export": "python3 tools/export_context.py",
+    "handoff_export": "python3 tools/export_handoff.py",
+    "dev_port": "csjs-dev-port get hippogriff-classics-moo2 web"
+  },
+  "project_may_mutate_local_record": true,
+  "project_owned_record": true,
+  "record_type": "unity1-project-integration-state",
+  "refresh_policy": {
+    "mode": "on_demand",
+    "refresh_on_routine_export": false,
+    "triggers": [
+      "initial_bootstrap_or_migration",
+      "operator_announces_new_or_changed_shared_capability",
+      "repeated_shared_tool_errors_after_local_checks",
+      "first_use_of_unrepresented_shared_capability",
+      "local_record_conflicts_with_observed_shared_behavior",
+      "operation_depends_on_unestablished_volatile_shared_state",
+      "shared_authority_conflict"
+    ]
+  },
+  "schema_version": 1,
+  "shared_authority_access": "read_only",
+  "shared_authority_mutation_forbidden": true,
+  "shared_authority_repository": "/srv/csjs/repositories/csjs-workstation",
+  "shared_consumer_contract": "docs/operations/UNITY1_SHARED_CONSUMER_CONTRACT.md",
+  "unity_mode": "unity1"
+}
