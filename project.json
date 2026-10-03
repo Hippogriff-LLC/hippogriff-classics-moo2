@@ -20,5 +20,6 @@
     ]
   },
   "production_deployment_authorized": false,
-  "proprietary_game_assets_in_repository": false
+  "proprietary_game_assets_in_repository": false,
+  "license": "Apache-2.0"
 }

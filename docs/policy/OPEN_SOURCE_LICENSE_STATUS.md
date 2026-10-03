@@ -1,7 +1,11 @@
 # Open-Source License Status
 
-The repository is intentionally public and the project is intended to become open source.
+The project software license is **Apache License 2.0** (`Apache-2.0`).
 
-Bootstrap does not choose a software license on the operator's behalf. Until a license is selected and committed, public visibility alone does not grant general reuse rights.
+The license applies to independently authored software, documentation, specifications, tests, and other project material that Hippogriff has the right to license under these terms.
 
-The project-owning thread should select an appropriate open-source license before inviting external contributions or making a formal release.
+It does **not** license, authorize redistribution of, or alter the ownership of original Master of Orion II executables, LBX payloads, artwork, music, text, manuals, archives, extracted assets, trademarks, or other proprietary game material.
+
+Those original-game materials remain governed by `docs/policy/PROPRIETARY_ASSET_POLICY.md` and must never be committed or redistributed through this repository or its releases.
+
+See the repository-root `LICENSE` file for the full Apache License 2.0 text.

@@ -5,6 +5,7 @@ import json, subprocess, sys
 ROOT = Path(__file__).resolve().parents[1]
 required = [
     "README.md",
+    "LICENSE",
     "AGENTS.md",
     "project.json",
     "docs/architecture/ARCHITECTURE_BOUNDARY.md",
@@ -32,6 +33,7 @@ assert meta["unity1"]["port_block"] == {"start": 3180, "end": 3189}
 assert meta["unity1"]["services"][0]["port"] == 3180
 assert meta["production_deployment_authorized"] is False
 assert meta["proprietary_game_assets_in_repository"] is False
+assert meta["license"] == "Apache-2.0"
 
 state = json.loads((ROOT / "docs/operations/UNITY1_INTEGRATION_STATE.json").read_text())
 assert state["project_id"] == meta["project_id"]

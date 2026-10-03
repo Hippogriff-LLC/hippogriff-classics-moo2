@@ -36,6 +36,8 @@ Canonical browser development service: TCP `3180`
 
 See `docs/operations/UNITY1_INTEGRATION.md` and `docs/operations/LOCAL_DEVELOPMENT.md`.
 
-## License status
+## License
 
-The project is intended to be open source. A final software license is deliberately not selected by this bootstrap. The project-owning thread should select and commit the license before inviting outside contributions or making a formal open-source release.
+Independently authored project software and documentation are licensed under the Apache License 2.0 (`Apache-2.0`).
+
+This license does not apply to original Master of Orion II executables, LBX payloads, artwork, music, text, manuals, archives, trademarks, or other proprietary game material. See `docs/policy/PROPRIETARY_ASSET_POLICY.md`.

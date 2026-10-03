@@ -27,9 +27,13 @@ No production deployment is authorized.
 
 Unity1 Control has accepted an external private research-input mechanism. The operator-owned installation is visible read-only at `private-input/moo2`; proprietary bytes remain outside Git and outside normal project context/handoff exports.
 
-## Recommended next project-thread action
+## License
 
-Review the private-input acceptance, select the project software license, then author Sprint 001 for the governed `claude-opus-5-5` / exact / high experiment. Do not copy proprietary input into tracked or release paths.
+Project-authored material is licensed under Apache License 2.0. Original MOO2 proprietary material remains excluded from that license and from repository/release artifacts.
+
+## Current project-thread action
+
+Sprint 001 is authored at `tasks/sprint-001-one-shot-browser-native-reconstruction.md` for the governed `claude-opus-5-5` / exact / high experiment. Do not copy proprietary input into tracked or release paths.
 """
 ART.mkdir(parents=True,exist_ok=True)
 out.write_text(text,encoding="utf-8")
