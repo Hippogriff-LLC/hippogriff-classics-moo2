@@ -25,11 +25,11 @@ Repository bootstrap is complete only when accompanied by Unity1 Control accepta
 
 No production deployment is authorized.
 
-Original MOO2 files must remain outside Git and must not be installed until Unity1 Control designates/accepts an external private research-input location that will not leak into repository context exports or public artifacts.
+Unity1 Control has accepted an external private research-input mechanism. The operator-owned installation is visible read-only at `private-input/moo2`; proprietary bytes remain outside Git and outside normal project context/handoff exports.
 
 ## Recommended next project-thread action
 
-Review repository bootstrap/context, select the project software license, resolve the private research-input location with Unity1 Control, then author Sprint 001 for the governed `claude-opus-5-5` / exact / high experiment. Do not launch the agent until the original game input location has been accepted and populated through the approved mechanism.
+Review the private-input acceptance, select the project software license, then author Sprint 001 for the governed `claude-opus-5-5` / exact / high experiment. Do not copy proprietary input into tracked or release paths.
 """
 ART.mkdir(parents=True,exist_ok=True)
 out.write_text(text,encoding="utf-8")
