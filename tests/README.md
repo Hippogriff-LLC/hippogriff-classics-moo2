@@ -7,6 +7,7 @@ Run with `npm test`, which uses Node's built-in `node:test` runner with native T
 | `formats.test.ts` | LBX container, RLE image, palette and text decoders, using synthetic fixtures built by the project's own encoders |
 | `engine.test.ts` | RNG determinism, new game setup, economy, research, production and buying, colonisation, movement range, combat, invasion, save integrity, and turn determinism across save/load |
 | `integration.test.ts` | full all-AI games over 120 turns with state-consistency checks and deterministic replay |
+| `recomp.test.ts` | the static recompiler on a hand-assembled synthetic LE program: LE loading and fixups, x86 decoding, control-flow recovery (recursion, a switch table, an address-taken function), and an end-to-end run of the emitted C compiled with `runtime/` and `fixtures/host_test.c` (skipped if no C compiler is found) |
 
 Fixtures are synthetic. Tests never read the original installation and never embed original bytes.
 
