@@ -81,9 +81,12 @@ export async function sourcesFromDirectoryHandle(dir: FileSystemDirectoryHandle)
 
 /** DEVELOPMENT ONLY: files exposed by `tools/serve.mjs --dev-install <dir>`. Absent in production builds. */
 export async function sourcesFromDevServer(): Promise<SourceFile[] | null> {
+  // Only the development server (which serves TypeScript sources directly) offers this endpoint;
+  // production builds never probe for it.
+  if (!import.meta.url.endsWith(".ts")) return null;
   try {
     const res = await fetch("/__dev_install/index.json", { cache: "no-store" });
-    if (!res.ok) return null;
+    if (res.status !== 200) return null;
     const idx = (await res.json()) as { files: { name: string; size: number }[] };
     return idx.files.map((f) => ({
       name: upper(f.name),

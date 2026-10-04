@@ -91,7 +91,8 @@ const server = createServer(async (req, res) => {
     };
     if (path.startsWith("/__dev_install/")) {
       if (!devInstall) {
-        res.writeHead(404, headers).end("dev install not enabled");
+        // 204 rather than 404 so the dev client's availability probe stays quiet in the console
+        res.writeHead(path === "/__dev_install/index.json" ? 204 : 404, headers).end();
         return;
       }
       if (path === "/__dev_install/index.json") {

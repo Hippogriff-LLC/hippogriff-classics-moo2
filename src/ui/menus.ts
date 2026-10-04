@@ -58,11 +58,19 @@ export function menuScreen(app: App): HTMLElement {
   return el;
 }
 
+// Messages from the last import survive the screen re-render that follows a successful import.
+let importMessages: [string, string][] = [];
+
 export function importScreen(app: App): HTMLElement {
   const log = h("div", { class: "import-log", "data-testid": "import-log" });
-  const say = (t: string, cls = "") => log.appendChild(h("div", { class: cls }, t));
+  const say = (t: string, cls = "") => {
+    importMessages.push([t, cls]);
+    log.appendChild(h("div", { class: cls }, t));
+  };
+  for (const [t, cls] of importMessages) log.appendChild(h("div", { class: cls }, t));
   const run = async (sources: SourceFile[] | null, source: "folder" | "dev") => {
     log.textContent = "";
+    importMessages = [];
     if (!sources || !sources.length) {
       say("No files selected.", "bad");
       return;
@@ -136,7 +144,10 @@ export function importScreen(app: App): HTMLElement {
         resetArt();
         app.refresh();
       }) : null,
-      button("Back", () => app.go("menu")),
+      button("Back", () => {
+        importMessages = [];
+        app.go("menu");
+      }),
     ),
   );
 }

@@ -131,9 +131,9 @@ export class AssetService {
               const b = rgba[i + 2];
               if (Math.max(r, g, b) - Math.min(r, g, b) > 14) continue;
               const l = (r + g + b) / 765;
-              rgba[i] = Math.min(255, tr * l * 1.35);
-              rgba[i + 1] = Math.min(255, tg * l * 1.35);
-              rgba[i + 2] = Math.min(255, tb * l * 1.35);
+              rgba[i] = Math.min(255, tr * l * 1.6);
+              rgba[i + 1] = Math.min(255, tg * l * 1.6);
+              rgba[i + 2] = Math.min(255, tb * l * 1.6);
             }
           }
           const c = document.createElement("canvas");

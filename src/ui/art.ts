@@ -93,10 +93,10 @@ function proceduralPlanet(p: Planet, r: number): HTMLCanvasElement {
       for (let i = 0; i < 14; i++) {
         const hsh = hash(p.id * 31 + i);
         const a = ((hsh & 1023) / 1023) * Math.PI * 2;
-        const rr = r * (0.3 + ((hsh >> 10) & 255) / 400);
+        const rr = r * (0.3 + ((hsh >>> 10) & 255) / 400);
         ctx.fillStyle = i % 2 ? "#8a8070" : "#a09888";
         ctx.beginPath();
-        ctx.arc(cx + Math.cos(a) * rr, cx + Math.sin(a) * rr, 1 + ((hsh >> 18) % 3) * (r / 14), 0, Math.PI * 2);
+        ctx.arc(cx + Math.cos(a) * rr, cx + Math.sin(a) * rr, 1 + ((hsh >>> 18) % 3) * (r / 14), 0, Math.PI * 2);
         ctx.fill();
       }
       return c;
@@ -118,7 +118,7 @@ function proceduralPlanet(p: Planet, r: number): HTMLCanvasElement {
         const hsh = hash(p.id * 97 + i);
         ctx.fillStyle = i % 3 === 0 ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.18)";
         ctx.beginPath();
-        ctx.arc(((hsh & 255) / 255) * d, (((hsh >> 8) & 255) / 255) * d, r * (0.15 + ((hsh >> 16) & 63) / 160), 0, Math.PI * 2);
+        ctx.arc(((hsh & 255) / 255) * d, (((hsh >>> 8) & 255) / 255) * d, r * (0.15 + ((hsh >>> 16) & 63) / 160), 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -202,9 +202,32 @@ export function shipImage(d: ShipDesign, empireColor: number, size = 48): HTMLCa
   const color = d.owner < 0 ? "#c050ff" : EMPIRE_COLORS[empireColor] ?? "#ccc";
   if (assets.available && d.role !== "monster") {
     const img = assets.ship(empireColor, d.imageIndex, color);
-    if (img) return img;
+    if (img) return memo(`shipfit:${empireColor}:${d.imageIndex}:${d.hull}:${color}:${size}`, () => fitSprite(img, size, 0.66 + Math.min(5, d.hull) * 0.066));
   }
   return proceduralShip(d, color, size);
+}
+
+/** Crop a sprite to its opaque pixels and centre it in a size×size canvas, filling `frac` of the side. */
+function fitSprite(img: HTMLCanvasElement, size: number, frac: number): HTMLCanvasElement {
+  const a = img.getContext("2d")!.getImageData(0, 0, img.width, img.height).data;
+  let x0 = img.width, y0 = img.height, x1 = -1, y1 = -1;
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      if (!a[(y * img.width + x) * 4 + 3]) continue;
+      x0 = Math.min(x0, x);
+      x1 = Math.max(x1, x);
+      y0 = Math.min(y0, y);
+      y1 = Math.max(y1, y);
+    }
+  }
+  if (x1 < 0) return img;
+  const w = x1 - x0 + 1;
+  const hgt = y1 - y0 + 1;
+  const k = (size * frac) / Math.max(w, hgt);
+  const [c, ctx] = canvas(size, size);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, x0, y0, w, hgt, (size - w * k) / 2, (size - hgt * k) / 2, w * k, hgt * k);
+  return c;
 }
 
 /** Race portrait (imported) or a procedural emblem. */
@@ -226,7 +249,7 @@ export function portrait(raceId: string, w = 145, hgt = 161): HTMLCanvasElement 
     ctx.strokeStyle = "#0008";
     ctx.lineWidth = 3;
     const hw = w * (0.24 + (k % 5) * 0.03);
-    const hh = hgt * (0.26 + ((k >> 3) % 5) * 0.025);
+    const hh = hgt * (0.26 + ((k >>> 3) % 5) * 0.025);
     ctx.beginPath();
     ctx.ellipse(w / 2, hgt * 0.45, hw, hh, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -238,10 +261,10 @@ export function portrait(raceId: string, w = 145, hgt = 161): HTMLCanvasElement 
     ctx.fillStyle = (k & 64) ? "#ffd84a" : "#101010";
     const ey = hgt * 0.42;
     const ex = hw * 0.45;
-    const er = Math.max(3, hw * (0.12 + ((k >> 7) % 4) * 0.04));
+    const er = Math.max(3, hw * (0.12 + ((k >>> 7) % 4) * 0.04));
     for (const sx of [-1, 1]) {
       ctx.beginPath();
-      ctx.ellipse(w / 2 + sx * ex, ey, er, er * (0.6 + ((k >> 9) % 3) * 0.2), 0, 0, Math.PI * 2);
+      ctx.ellipse(w / 2 + sx * ex, ey, er, er * (0.6 + ((k >>> 9) % 3) * 0.2), 0, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.fillStyle = "#fff";

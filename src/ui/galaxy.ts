@@ -49,7 +49,7 @@ function planetLine(s: GameState, app: App, p: Planet, star: Star): HTMLElement 
   else desc = `${PLANET_SIZES[p.size]} ${CLIMATES[p.climate]}, ${MINERALS[p.minerals]}, ${GRAVITIES[p.gravity]}`;
   if (p.special !== "none") desc += ` · ${p.special}`;
   const c = p.colonyId !== null ? s.colonies[p.colonyId] : null;
-  const parts: (HTMLElement | string)[] = [icon, h("div", { class: "pinfo" }, h("strong", null, name), h("span", { class: "muted" }, desc))];
+  const parts: (HTMLElement | string)[] = [icon, h("div", { class: "pinfo" }, h("strong", null, name), " ", h("span", { class: "muted" }, desc))];
   if (c) {
     const owner = s.empires[c.owner];
     parts.push(h("span", { class: "owner", style: `color:${EMPIRE_COLORS[owner.color]}` }, c.outpost ? `${owner.name} outpost` : `${race(c.raceId).name} · ${c.pop}M`));
@@ -174,7 +174,8 @@ export function galaxyScreen(app: App): HTMLElement {
   const meId = app.me.id;
   if (!cam || cam.gameId !== s.id) {
     const home = s.stars[app.me.capitalStarId];
-    cam = { gameId: s.id, cx: home.x, cy: home.y, zoom: 14 };
+    // zoom 0 = fit the whole galaxy once the canvas has a size
+    cam = { gameId: s.id, cx: home.x, cy: home.y, zoom: 0 };
   }
   const c = cam;
   const canvas = h("canvas", { class: "galaxy-canvas", "data-testid": "galaxy-canvas", tabindex: 0 }) as HTMLCanvasElement;
@@ -283,6 +284,11 @@ export function galaxyScreen(app: App): HTMLElement {
     const r = wrap.getBoundingClientRect();
     canvas.width = Math.max(200, Math.floor(r.width));
     canvas.height = Math.max(200, Math.floor(r.height));
+    if (!c.zoom) {
+      c.cx = s.width / 2;
+      c.cy = s.height / 2;
+      c.zoom = Math.max(4, Math.min(60, Math.min(canvas.width / (s.width + 4), canvas.height / (s.height + 4))));
+    }
     draw();
   };
   new ResizeObserver(resize).observe(wrap);
@@ -376,6 +382,7 @@ export function focusStar(app: App, starId: number): void {
   if (cam) {
     cam.cx = st.x;
     cam.cy = st.y;
+    if (!cam.zoom) cam.zoom = 14;
   }
   app.sel.starId = starId;
   app.sel.fleetId = null;
