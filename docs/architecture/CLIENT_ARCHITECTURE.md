@@ -1,5 +1,12 @@
 # Client architecture (Sprint 001)
 
+> **Continuation update.** `index.html` is now the recompilation port shell (`src/port/`). It runs a private
+> `moo2.wasm` built from the user's own `Orion2.exe` in a worker, with the installation, build and saves
+> kept in the IndexedDB database `hippogriff-moo2-port`. It needs cross-origin isolation, which
+> `tools/serve.mjs` sends as COOP/COEP headers. See `docs/research/RECOMPILATION.md`. The remainder of
+> this document describes the first-run TypeScript engine, which is superseded scaffolding now reached at
+> `prototype.html`.
+
 Everything runs in the browser: simulation, rendering, the imported-asset cache and saves. The server
 only serves static files. There are no runtime npm dependencies, and the toolchain is Node ≥ 24 alone.
 

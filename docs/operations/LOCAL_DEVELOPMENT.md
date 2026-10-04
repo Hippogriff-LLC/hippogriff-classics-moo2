@@ -47,6 +47,21 @@ The import screen then shows **Use development installation**. Files are streame
 stored in that browser profile's IndexedDB; nothing is copied into the repository or into `dist/`. The
 directory must stay outside Git, and the read-only private-input projection must not be modified.
 
+## Running the recompilation port (development only)
+
+`index.html` is the port shell, and it needs a private build made from the user's own `Orion2.exe`. See
+`docs/research/RECOMPILATION.md` for how to make one. Keep all build output outside the repository. To
+provide the installation and the build without the folder pickers:
+
+```
+node tools/serve.mjs --mode dev --dev-install /path/to/installation --dev-build /private/devbuild
+node tools/smoke.mjs --dev-install /path/to/installation --dev-build /private/devbuild --play \
+  --screenshots "$TMPDIR/shots"
+```
+
+The server always sends COOP/COEP/CORP headers, because the port worker needs `SharedArrayBuffer`.
+Screenshots of the running port show original artwork. Keep them out of Git and out of exports.
+
 ## Browser smoke test
 
 `tools/smoke.mjs` drives a local Chromium over the DevTools protocol, without npm packages. By default it

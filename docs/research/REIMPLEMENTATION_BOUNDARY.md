@@ -8,4 +8,9 @@ Do not commit original proprietary binaries/data or bulk decompiler/disassembly 
 
 Research tooling may inspect operator-supplied files outside Git. Derived specifications should describe behavior and formats rather than serve as a redistribution channel for original code or content.
 
+The static recompilation port (`docs/research/RECOMPILATION.md`) follows this rule. The repository holds
+only the independently authored recompiler and runtime. The C, memory image and `moo2.wasm` they produce
+from a user's executable are private per-user build output. The tools refuse to write that output inside
+the repository, and it is never committed or exported.
+
 Provenance for meaningful external research should be recorded under `provenance/`.

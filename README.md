@@ -8,6 +8,19 @@ This repository begins as a Unity1-local research and implementation project. Th
 
 This is **not** a DOSBox-in-browser wrapper.
 
+## Current approach: static recompilation port
+
+Since the Sprint 001 continuation, the main path is a faithful port. The user's own `Orion2.exe` is
+statically recompiled into portable C (`src/recomp/`, `tools/re/recompile.ts`), and that C is built
+natively and to WebAssembly together with an independently authored DOS/DPMI/PC runtime (`runtime/`).
+A thin browser layer (`src/port/`, served as `index.html`) runs the result. The original game's own logic
+runs, and no emulator is involved. The generated C and `moo2.wasm` are private per-user build output,
+kept outside Git. See `docs/research/RECOMPILATION.md`.
+
+The first-run TypeScript engine (`src/engine/`, `src/ui/`, now at `prototype.html`) is a MOO2-inspired
+approximation. It is kept as superseded scaffolding, and its LBX decoders (`src/formats/`) are still
+useful for research.
+
 The repository is intended to contain only independently authored engine code, importer/decoder code, browser client code, tests, tooling, documentation, reverse-engineering specifications, and provenance records.
 
 ## Proprietary content boundary

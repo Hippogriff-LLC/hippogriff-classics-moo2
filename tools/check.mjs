@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Static sanity checks without third-party tooling:
-//  1. every module under src/ (except the DOM entry point) links and evaluates in Node,
+//  1. every module under src/ (except the DOM and worker entry points) links and evaluates in Node,
 //     which catches missing exports, bad import paths and non-erasable TypeScript syntax;
 //  2. relative imports carry an explicit .ts extension (required by the build rewrite);
 //  3. no source file embeds large base64/hex blobs (guard against smuggled binary content).
@@ -15,7 +15,7 @@ process.on("warning", (w) => {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(ROOT, "src");
-const SKIP_EVAL = new Set(["main.ts"]);
+const SKIP_EVAL = new Set(["main.ts", join("port", "main.ts"), join("port", "worker.ts")]);
 
 async function* walk(dir) {
   for (const ent of await readdir(dir, { withFileTypes: true })) {

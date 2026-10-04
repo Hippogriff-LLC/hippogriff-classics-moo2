@@ -1,0 +1,54 @@
+/* Port shell: the game's 4:3 screen scaled to fit, plus the one-time setup panel. Apache-2.0. */
+#app.port {
+  align-items: center;
+  padding: 12px;
+  gap: 8px;
+}
+.port-head {
+  text-align: center;
+}
+.port-head h1 {
+  margin: 0 0 4px;
+}
+.port-head p {
+  margin: 0;
+}
+.port-setup {
+  max-width: 720px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 12px 16px;
+}
+.port-setup .row {
+  margin: 4px 0 12px;
+}
+.port-setup .warn {
+  color: var(--bad);
+}
+.port .small {
+  font-size: 12px;
+}
+.port .muted {
+  color: var(--muted);
+}
+.port-screen {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.port-screen canvas {
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 4 / 3;
+  height: 100%;
+  image-rendering: pixelated;
+  background: #000;
+  outline: none;
+  cursor: none;
+}
+#app.port[data-state="setup"] .port-screen canvas {
+  cursor: default;
+}

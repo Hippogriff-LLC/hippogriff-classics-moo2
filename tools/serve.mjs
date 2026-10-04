@@ -8,6 +8,13 @@
 //                                                   directory to the in-browser importer at /__dev_install/.
 //                                                   Files are streamed to the browser on request; nothing is
 //                                                   copied into the repository or the build output.
+//   --dev-build <dir>                               DEVELOPMENT ONLY: expose a private build of the recompiled
+//                                                   program (moo2.wasm, image.bin, entry.txt from
+//                                                   runtime/wasm.mk) at /__dev_build/. It is derived from the
+//                                                   user's own Orion2.exe and must live outside the repository.
+//
+// Every response carries COOP/COEP so the page is cross-origin isolated: the port's worker needs
+// SharedArrayBuffer. Static hosts serving dist/ must send the same two headers.
 import { createServer } from "node:http";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { createReadStream } from "node:fs";
@@ -44,8 +51,15 @@ if (["0.0.0.0", "::", "[::]", "", "*"].includes(host)) {
 }
 const devInstallArg = opt("dev-install", process.env.HIPPOGRIFF_DEV_INSTALL || "");
 const devInstall = devInstallArg ? resolve(devInstallArg) : null;
-if (devInstall && mode !== "dev") {
-  console.error("REFUSED: --dev-install is only available in --mode dev");
+const devBuildArg = opt("dev-build", process.env.HIPPOGRIFF_DEV_BUILD || "");
+const devBuild = devBuildArg ? resolve(devBuildArg) : null;
+const BUILD_FILES = ["moo2.wasm", "image.bin", "entry.txt"];
+if ((devInstall || devBuild) && mode !== "dev") {
+  console.error("REFUSED: --dev-install and --dev-build are only available in --mode dev");
+  process.exit(2);
+}
+if (devBuild && within(ROOT, devBuild)) {
+  console.error("REFUSED: --dev-build must be outside the repository (the build is derived from the user's executable)");
   process.exit(2);
 }
 const base = mode === "dist" ? join(ROOT, "dist") : join(ROOT, "src");
@@ -88,7 +102,36 @@ const server = createServer(async (req, res) => {
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
       "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+      "Cross-Origin-Resource-Policy": "same-origin",
     };
+    if (path.startsWith("/__dev_build/")) {
+      const name = path.slice("/__dev_build/".length);
+      if (!devBuild) {
+        res.writeHead(name === "index.json" ? 204 : 404, headers).end();
+        return;
+      }
+      if (name === "index.json") {
+        const files = [];
+        for (const f of BUILD_FILES) if (await stat(join(devBuild, f)).catch(() => null)) files.push(f);
+        res.writeHead(200, { ...headers, "Content-Type": MIME[".json"] }).end(JSON.stringify({ files }));
+        return;
+      }
+      if (!BUILD_FILES.includes(name)) {
+        res.writeHead(404, headers).end("not found");
+        return;
+      }
+      const fp = join(devBuild, name);
+      const s = await stat(fp).catch(() => null);
+      if (!s?.isFile()) {
+        res.writeHead(404, headers).end("not found");
+        return;
+      }
+      const type = name.endsWith(".wasm") ? "application/wasm" : "application/octet-stream";
+      res.writeHead(200, { ...headers, "Content-Type": type, "Content-Length": s.size });
+      createReadStream(fp).pipe(res);
+      return;
+    }
     if (path.startsWith("/__dev_install/")) {
       if (!devInstall) {
         // 204 rather than 404 so the dev client's availability probe stays quiet in the console
@@ -111,7 +154,25 @@ const server = createServer(async (req, res) => {
         res.writeHead(404, headers).end("not found");
         return;
       }
-      res.writeHead(200, { ...headers, "Content-Type": "application/octet-stream", "Content-Length": s.size });
+      // ranged reads let the port's worker stream the installation instead of loading all of it
+      const range = /^bytes=(\d+)-(\d+)?$/.exec(req.headers.range ?? "");
+      if (range) {
+        const start = Number(range[1]);
+        const end = Math.min(range[2] === undefined ? s.size - 1 : Number(range[2]), s.size - 1);
+        if (start > end) {
+          res.writeHead(416, { ...headers, "Content-Range": `bytes */${s.size}` }).end();
+          return;
+        }
+        res.writeHead(206, {
+          ...headers,
+          "Content-Type": "application/octet-stream",
+          "Content-Length": end - start + 1,
+          "Content-Range": `bytes ${start}-${end}/${s.size}`,
+        });
+        createReadStream(fp, { start, end }).pipe(res);
+        return;
+      }
+      res.writeHead(200, { ...headers, "Content-Type": "application/octet-stream", "Content-Length": s.size, "Accept-Ranges": "bytes" });
       createReadStream(fp).pipe(res);
       return;
     }
@@ -147,5 +208,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`SERVE mode=${mode} url=http://${host.includes(":") ? `[${host}]` : host}:${port}/ devInstall=${devInstall ? "enabled" : "disabled"}`);
+  console.log(`SERVE mode=${mode} url=http://${host.includes(":") ? `[${host}]` : host}:${port}/ devInstall=${devInstall ? "enabled" : "disabled"} devBuild=${devBuild ? "enabled" : "disabled"}`);
 });

@@ -9,8 +9,15 @@
 //   --import-dev         first import through the dev server's /__dev_install endpoint (dev server with
 //                        --dev-install only); screenshots then show original artwork, so keep them out of Git
 //
-// The run uses a throw-away browser profile. Without --import-dev it never sees an imported installation and
-// exercises the built-in (procedural) presentation path only.
+//   --dev-install <dir>  spawn a dev server (instead of dist) exposing a private installation
+//   --dev-build <dir>    ... and a private build of the recompiled program (runtime/wasm.mk output)
+//   --play               with both of the above: start the original program in the port shell, skip the
+//                        intro with Escape and open the New Game screen with the mouse; screenshots then
+//                        show original artwork, so keep them out of Git
+//
+// The run uses a throw-away browser profile. It first checks the port shell (index.html), then exercises
+// the superseded first-run prototype (prototype.html). Without --import-dev the prototype never sees an
+// imported installation and exercises its built-in (procedural) presentation path only.
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readdirSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
@@ -143,10 +150,22 @@ async function main() {
   }
   let url = opt("url", null);
   let server = null;
+  const devInstall = opt("dev-install", null);
+  const devBuild = opt("dev-build", null);
+  const play = args.includes("--play");
+  if (play && !(devInstall && devBuild)) {
+    console.log("SMOKE=BLOCKED reason=--play-needs-dev-install-and-dev-build");
+    process.exit(3);
+  }
   if (!url) {
     const port = Number(opt("port", canonicalPort()));
-    if (!existsSync(join(ROOT, "dist", "index.html"))) execFileSync(process.execPath, [join(ROOT, "tools", "build.mjs")], { stdio: "inherit" });
-    server = spawn(process.execPath, [join(ROOT, "tools", "serve.mjs"), "--mode", "dist", "--host", "127.0.0.1", "--port", String(port)], { stdio: ["ignore", "pipe", "inherit"] });
+    let serveArgs = ["--mode", "dist"];
+    if (devInstall || devBuild) {
+      serveArgs = ["--mode", "dev"];
+      if (devInstall) serveArgs.push("--dev-install", devInstall);
+      if (devBuild) serveArgs.push("--dev-build", devBuild);
+    } else if (!existsSync(join(ROOT, "dist", "index.html"))) execFileSync(process.execPath, [join(ROOT, "tools", "build.mjs")], { stdio: "inherit" });
+    server = spawn(process.execPath, [join(ROOT, "tools", "serve.mjs"), ...serveArgs, "--host", "127.0.0.1", "--port", String(port)], { stdio: ["ignore", "pipe", "inherit"] });
     url = `http://127.0.0.1:${port}/`;
   }
   await waitHttp(url, 10000);
@@ -196,8 +215,72 @@ async function main() {
       const r = await cdp.send("Page.captureScreenshot", { format: "png" });
       writeFileSync(join(shotsDir, `${name}.png`), Buffer.from(r.data, "base64"));
     };
-    await cdp.send("Page.navigate", { url });
     const ev = (expr) => cdp.eval(`(async () => { ${expr} })()`);
+    const waitReady = async () => {
+      const until = Date.now() + 15000;
+      while (Date.now() < until) {
+        if (await cdp.eval(`document.getElementById('app')?.dataset.ready === '1'`).catch(() => false)) return;
+        await sleep(100);
+      }
+      throw new Error("page did not become ready");
+    };
+
+    // ---- port shell: the original program recompiled to WebAssembly
+    await cdp.send("Page.navigate", { url });
+    await waitReady();
+    const shell = await ev(`const q = (id) => document.querySelector('[data-testid="' + id + '"]');
+      return { isolated: crossOriginIsolated, game: q('port-game-status').textContent, build: q('port-build-status').textContent, canStart: !q('port-start').disabled };`);
+    if (!shell.isolated) throw new Error("port shell is not cross-origin isolated");
+    step("port-shell", JSON.stringify(shell).slice(0, 240));
+    await shot("00-port-shell");
+    if (play) {
+      if (!shell.canStart) throw new Error(`port cannot start: ${shell.game} / ${shell.build}`);
+      await ev(`document.querySelector('[data-testid="port-start"]').click(); return true;`);
+      const status = () => ev(`return window.__moo2`);
+      const waitGuest = async (ms, limit = 120000) => {
+        const until = Date.now() + limit;
+        for (;;) {
+          const st = await status();
+          if (st.state === "error" || st.state === "exited") throw new Error(`game stopped (${st.state}): ${document_status(st)}`);
+          if (st.guestMs >= ms) return st;
+          if (Date.now() > until) throw new Error(`guest time stuck at ${st.guestMs} ms`);
+          await sleep(200);
+        }
+      };
+      const document_status = (st) => JSON.stringify({ ...st, log: st.log.slice(-5) });
+      const st0 = await waitGuest(3000);
+      step("port-running", `frames=${st0.frames} video=${st0.width}x${st0.height}`);
+      await shot("01-port-logo");
+      // the canvas has focus; Escape skips each part of the intro, as in DOS
+      for (let i = 0; i < 5; i++) {
+        await waitGuest(9000 + i * 3000);
+        await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", code: "Escape", key: "Escape", windowsVirtualKeyCode: 27 });
+        await sleep(60);
+        await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", code: "Escape", key: "Escape", windowsVirtualKeyCode: 27 });
+      }
+      await waitGuest(25000);
+      await shot("02-port-main-menu");
+      step("port-main-menu");
+      // the New Game entry of the main menu, in guest screen coordinates (640x480)
+      const pt = await ev(`const r = document.querySelector('[data-testid="port-canvas"]').getBoundingClientRect();
+        return { x: r.left + r.width * 490 / 640, y: r.top + r.height * 228 / 480 };`);
+      await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: pt.x - 10, y: pt.y - 8 });
+      await sleep(300);
+      await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: pt.x, y: pt.y });
+      await sleep(300);
+      await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: pt.x, y: pt.y, button: "left", buttons: 1, clickCount: 1 });
+      await sleep(200);
+      await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: pt.x, y: pt.y, button: "left", buttons: 0, clickCount: 1 });
+      const st1 = await waitGuest((await status()).guestMs + 4000);
+      await shot("03-port-new-game");
+      const lit = await ev(`const c = document.querySelector('[data-testid="port-canvas"]'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        let n = 0; for (let i = 0; i < d.length; i += 64) if (d[i] + d[i+1] + d[i+2] > 60) n++; return n;`);
+      if (!(lit > 200)) throw new Error(`port canvas looks blank (${lit} lit samples)`);
+      step("port-new-game", `guestMs=${Math.round(st1.guestMs)} frames=${st1.frames} litSamples=${lit}`);
+    }
+
+    // ---- first-run prototype (superseded; kept as scaffolding)
+    await cdp.send("Page.navigate", { url: new URL("prototype.html", url).href });
     const end = Date.now() + 15000;
     while (Date.now() < end) {
       if (await cdp.eval(`document.getElementById('app')?.dataset.ready === '1'`).catch(() => false)) break;
