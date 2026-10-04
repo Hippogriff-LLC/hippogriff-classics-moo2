@@ -1,0 +1,19 @@
+{
+  "name": "hippogriff-classics-moo2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Experimental browser-native reimplementation engine and client for Master of Orion II (independently authored; no original game content).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test --test-reporter=spec tests/*.test.ts",
+    "build": "node tools/build.mjs",
+    "dev": "node tools/serve.mjs --mode dev",
+    "serve:dist": "node tools/serve.mjs --mode dist",
+    "smoke": "node tools/smoke.mjs",
+    "check": "node tools/check.mjs"
+  }
+}
