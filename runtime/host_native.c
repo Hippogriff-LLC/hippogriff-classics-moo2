@@ -7,6 +7,7 @@
  *     --realtime      use the host clock instead of deterministic virtual time
  *     --verbose       log service calls
  *     --trace-int     log every software interrupt
+ *     --control FIFO  interactive: read commands from FIFO instead of a script (see control_command)
  *
  * The game directory is opened read-only; files the game creates or modifies go to the save directory,
  * which shadows the game directory. Independently authored; Apache-2.0. */
@@ -212,7 +213,86 @@ __attribute__((noreturn)) static void finish(int code) {
   exit(code);
 }
 
+/* ------------------------------------------------------------------ interactive control (--control FIFO)
+ * The guest runs until the requested guest time, then the host blocks reading one command per line:
+ *   run MS | click X Y [BUTTON] | move X Y | key SC | type TEXT | shot PATH | quit
+ * Each command is acknowledged on stdout with "ok <guest-ms>" once it has been applied. */
+static const char *control_path;
+static FILE *control;
+static double run_until;
+static ScriptEv queued[256];
+static int queued_n;
+
+static void enqueue(double t, int type, int a, int b, int c) {
+  if (queued_n == (int)(sizeof queued / sizeof queued[0])) return;
+  int i = queued_n++;
+  while (i > 0 && queued[i - 1].t > t) { queued[i] = queued[i - 1]; i--; }
+  queued[i] = (ScriptEv){t, type, a, b, c};
+  if (run_until < t + 100) run_until = t + 100;
+}
+
+static int ascii_scancode(int ch, int *shift) {
+  static const char lower[] = "\0\0331234567890-=\b\tqwertyuiop[]\r\0asdfghjkl;'`\0\\zxcvbnm,./";
+  static const char upper[] = "\0\033!@#$%^&*()_+\b\tQWERTYUIOP{}\r\0ASDFGHJKL:\"~\0|ZXCVBNM<>?";
+  *shift = 0;
+  if (ch == ' ') return 0x39;
+  for (int i = 1; i < (int)sizeof lower - 1; i++) {
+    if (lower[i] == ch) return i;
+    if (upper[i] == ch) { *shift = 1; return i; }
+  }
+  return 0;
+}
+
+static void control_command(char *line) {
+  double now = RT.now_ms;
+  char path[900];
+  int x, y, b = 1, sc;
+  double ms;
+  line[strcspn(line, "\r\n")] = 0;
+  if (sscanf(line, "run %lf", &ms) == 1) run_until = now + ms;
+  else if (sscanf(line, "click %d %d %d", &x, &y, &b) >= 2) {
+    enqueue(now, 2, x, y, 0);
+    enqueue(now + 150, 2, x, y, b);
+    enqueue(now + 300, 2, x, y, 0);
+    run_until = now + 600;
+  } else if (sscanf(line, "move %d %d", &x, &y) == 2) enqueue(now, 2, x, y, 0);
+  else if (sscanf(line, "key %x", &sc) == 1) { enqueue(now, 1, sc, 0, 0); enqueue(now + 80, 1, sc | 0x80, 0, 0); }
+  else if (!strncmp(line, "type ", 5)) {
+    double t = now;
+    for (const char *p = line + 5; *p; p++, t += 120) {
+      int shift, s = ascii_scancode(*p == '|' ? '\r' : *p, &shift);
+      if (!s) continue;
+      if (shift) enqueue(t, 1, 0x2a, 0, 0);
+      enqueue(t + 20, 1, s, 0, 0);
+      enqueue(t + 60, 1, s | 0x80, 0, 0);
+      if (shift) enqueue(t + 80, 1, 0xaa, 0, 0);
+    }
+  } else if (sscanf(line, "shot %899s", path) == 1) { if (last_w) write_ppm(path, last_frame, last_w, last_h, last_pal); }
+  else if (!strcmp(line, "quit")) { printf("ok %.0f\n", now); fflush(stdout); finish(0); }
+  else if (line[0]) { printf("err unknown command: %s\n", line); fflush(stdout); return; }
+  printf("ok %.0f\n", RT.now_ms);
+  fflush(stdout);
+}
+
+static int control_poll(HostEvent *ev) {
+  if (queued_n && queued[0].t <= RT.now_ms) {
+    ScriptEv s = queued[0];
+    memmove(queued, queued + 1, sizeof queued[0] * (size_t)--queued_n);
+    ev->type = s.type; ev->code = s.a; ev->x = s.a; ev->y = s.b; ev->buttons = s.c;
+    return 1;
+  }
+  while (RT.now_ms >= run_until && !queued_n) {
+    char line[1024];
+    if (!control) control = fopen(control_path, "r");
+    if (!control) { fprintf(stderr, "cannot open control %s\n", control_path); finish(2); }
+    if (!fgets(line, sizeof line, control)) { fclose(control); control = 0; continue; } /* writer closed: reopen */
+    control_command(line);
+  }
+  return 0;
+}
+
 int host_poll_event(HostEvent *ev) {
+  if (control_path) return control_poll(ev);
   if (RT.now_ms >= limit_ms) {
     if (RT.verbose) { rt_logf("time limit reached; guest stack:"); rt_dump_regs(); rt_backtrace(); }
     finish(0);
@@ -247,7 +327,7 @@ static uint8_t *read_all(const char *path, uint32_t *len) {
 int main(int argc, char **argv) {
   if (argc < 5) {
     fprintf(stderr, "usage: %s <build-dir> <game-dir> <save-dir> <frame-dir> [--ms N] [--every N] [--script F] "
-                    "[--realtime] [--verbose] [--trace-int]\n", argv[0]);
+                    "[--realtime] [--verbose] [--trace-int] [--control FIFO]\n", argv[0]);
     return 2;
   }
   const char *build = argv[1];
@@ -260,6 +340,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--realtime")) realtime = 1;
     else if (!strcmp(argv[i], "--verbose")) verbose = 1;
     else if (!strcmp(argv[i], "--trace-int")) trace_int = 1;
+    else if (!strcmp(argv[i], "--control") && i + 1 < argc) control_path = argv[++i];
     else { fprintf(stderr, "unknown option %s\n", argv[i]); return 2; }
   }
   char p[1024];

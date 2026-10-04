@@ -164,10 +164,18 @@ void pc_advance(double ms) {
   if (pending_ticks > 64) pending_ticks = 64;
 }
 
-/* The guest is visibly waiting (polling retrace, keyboard, mouse or the clock): move time forward. */
+static void sync_host_clock(void) {
+  double h = host_now_ms();
+  pc_advance(h - RT.last_host_ms);
+  RT.last_host_ms = h;
+}
+
+/* The guest is visibly waiting (polling retrace, keyboard, mouse or the clock): move time forward. In
+ * real-time mode the clock is re-read after yielding, otherwise a polling loop would only see time move
+ * once per RT_POLL_INTERVAL back-edges and every retrace wait would stretch to many host sleeps. */
 void pc_note_idle(void) {
   if (RT.realtime) {
-    if (++RT.idle_count > 64) { host_idle(1.0); RT.idle_count = 0; }
+    if (++RT.idle_count > 64) { host_idle(1.0); RT.idle_count = 0; sync_host_clock(); }
   } else pc_advance(0.01);
 }
 
@@ -199,11 +207,8 @@ void pc_poll(void) {
 void rt_poll(void) {
   rt_budget = RT_POLL_INTERVAL;
   RT.polls++;
-  if (RT.realtime) {
-    double h = host_now_ms();
-    pc_advance(h - RT.last_host_ms);
-    RT.last_host_ms = h;
-  } else pc_advance(VIRTUAL_MS_PER_POLL);
+  if (RT.realtime) sync_host_clock();
+  else pc_advance(VIRTUAL_MS_PER_POLL);
   pc_poll();
 }
 
@@ -224,6 +229,7 @@ void bios_int9_default(void) {
   uint32_t flags = RD8(0x417);
   int up = sc & 0x80;
   uint32_t k = sc & 0x7f;
+  if (sc == 0xe0 || sc == 0xe1) return; /* extended-key prefix: the following code is stored as usual */
   if (k == 0x2a || k == 0x36) { flags = up ? flags & ~(k == 0x2a ? 2u : 1u) : flags | (k == 0x2a ? 2u : 1u); }
   else if (k == 0x1d) flags = up ? flags & ~4u : flags | 4u;
   else if (k == 0x38) flags = up ? flags & ~8u : flags | 8u;
