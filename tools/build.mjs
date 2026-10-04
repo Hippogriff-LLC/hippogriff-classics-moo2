@@ -67,7 +67,9 @@ async function main() {
       hash.update(rel).update(js);
       modules++;
     } else if (STATIC_EXT.has(ext)) {
-      const buf = await readFile(p);
+      let buf = await readFile(p);
+      // module script tags in HTML point at .ts sources during development
+      if (ext === ".html") buf = Buffer.from(buf.toString("utf8").replace(/(<script[^>]*\bsrc=["'][^"']+)\.ts(["'])/g, "$1.js$2"));
       const outPath = join(OUT, rel);
       await mkdir(dirname(outPath), { recursive: true });
       await writeFile(outPath, buf);
