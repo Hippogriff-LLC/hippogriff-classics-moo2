@@ -126,12 +126,16 @@ static void kq_push(int sc) {
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 
 static void mouse_event(int x, int y, int buttons) {
-  int sx = RT.vesa ? x : x * 2; /* mode 13h drivers report 0..639 horizontally */
+  /* The host pointer is absolute in screen pixels; spread it over the range the program configured with
+   * int 33h functions 07h/08h (MOO2 asks for 0..1279 across its 640-pixel screen and halves CX itself). */
+  int w = RT.width > 0 ? RT.width : 320, h = RT.height > 0 ? RT.height : 200;
+  int sx = RT.mminx + (int)((int64_t)clampi(x, 0, w - 1) * (RT.mmaxx - RT.mminx + 1) / w);
+  y = RT.mminy + (int)((int64_t)clampi(y, 0, h - 1) * (RT.mmaxy - RT.mminy + 1) / h);
   sx = clampi(sx, RT.mminx, RT.mmaxx);
   y = clampi(y, RT.mminy, RT.mmaxy);
   int cond = 0;
   if (sx != RT.mx || y != RT.my) cond |= 1;
-  RT.mmickey_x += (sx - RT.mx) * 8 / (RT.vesa ? 8 : 8);
+  RT.mmickey_x += sx - RT.mx;
   RT.mmickey_y += (y - RT.my) * 2;
   RT.mx = sx; RT.my = y;
   for (int b = 0; b < 3; b++) {
@@ -407,7 +411,10 @@ void bios_int10(void) {
   switch (ah) {
   case 0x00:
     RT.vesa = 0; RT.video_mode = AL & 0x7f;
-    if (RT.video_mode == 0x13) { if (!(AL & 0x80)) rt_memset(M + WINDOW, 0, WINDOW_SIZE); RT.mmaxx = 639; RT.mmaxy = 199; }
+    if (RT.video_mode == 0x13) {
+      if (!(AL & 0x80)) rt_memset(M + WINDOW, 0, WINDOW_SIZE);
+      RT.width = 320; RT.height = 200; RT.pitch = 320; RT.mmaxx = 639; RT.mmaxy = 199;
+    } else { RT.width = RT.height = 0; }
     WR8(0x449, RT.video_mode);
     rt_logf("video: BIOS mode %x", RT.video_mode);
     return;

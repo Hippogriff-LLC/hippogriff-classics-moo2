@@ -179,7 +179,8 @@ void dos_int21(void) {
   case 0x35: { int v = AL; C.ebx = RT.pm_off[v]; rt_setseg(0, RT.pm_sel[v]); return; }
   case 0x2a: { int y, mo, d, h, mi, s, cs; host_local_time(&y, &mo, &d, &h, &mi, &s, &cs);
     SETCX(y); SETDX((mo << 8) | d); SETAL(0); return; }
-  case 0x2c: { int y, mo, d, h, mi, s, cs; host_local_time(&y, &mo, &d, &h, &mi, &s, &cs);
+  case 0x2c: { int y, mo, d, h, mi, s, cs; pc_note_idle(); /* commonly polled while waiting */
+    host_local_time(&y, &mo, &d, &h, &mi, &s, &cs);
     SETCX((h << 8) | mi); SETDX((s << 8) | cs); return; }
   case 0x30: C.eax = 0x0005 | (0 << 8); C.ebx = 0; C.ecx = 0; return; /* DOS 5.0 */
   case 0x33: if (AL == 0) SETDX(0); return;     /* ctrl-break state */

@@ -133,11 +133,14 @@ double host_now_ms(void) {
 }
 void host_local_time(int *y, int *mo, int *d, int *h, int *mi, int *s, int *cs) {
   /* fixed in virtual mode so runs are reproducible */
-  time_t t = RT.realtime ? time(0) : (time_t)(1000000000 + (long)(RT.now_ms / 1000));
+  struct timespec now;
+  clock_gettime(CLOCK_REALTIME, &now);
+  time_t t = RT.realtime ? now.tv_sec : (time_t)(1000000000 + (long)(RT.now_ms / 1000));
   struct tm tm;
   localtime_r(&t, &tm);
   *y = tm.tm_year + 1900; *mo = tm.tm_mon + 1; *d = tm.tm_mday;
-  *h = tm.tm_hour; *mi = tm.tm_min; *s = tm.tm_sec; *cs = 0;
+  *h = tm.tm_hour; *mi = tm.tm_min; *s = tm.tm_sec;
+  *cs = RT.realtime ? (int)(now.tv_nsec / 10000000) : (int)((long)RT.now_ms % 1000 / 10);
 }
 void host_idle(double ms) {
   if (RT.realtime) usleep((useconds_t)(ms * 1000));

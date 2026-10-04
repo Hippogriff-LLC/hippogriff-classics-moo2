@@ -17,7 +17,7 @@ uint32_t host_list(char *buf, uint32_t cap);
 
 /* Time */
 double host_now_ms(void);                            /* monotonic */
-void host_local_time(int *y, int *mo, int *d, int *h, int *mi, int *s, int *cs);
+void host_local_time(int *y, int *mo, int *d, int *h, int *mi, int *s, int *cs); /* cs: hundredths */
 void host_idle(double ms);                           /* the guest is waiting: sleep/yield up to ms */
 
 /* Video: 8-bit indexed frame plus 256 x RGB (6-bit components as written by the guest) */
