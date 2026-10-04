@@ -159,6 +159,7 @@ static void pump_events(void) {
 void pc_advance(double ms) {
   if (ms <= 0) return;
   RT.now_ms += ms;
+  audio_advance(ms);
   RT.pit_frac += ms * (PIT_HZ / 1000.0) / (double)RT.pit_divisor;
   while (RT.pit_frac >= 1.0) { RT.pit_frac -= 1.0; pending_ticks++; }
   if (pending_ticks > 64) pending_ticks = 64;
@@ -445,6 +446,7 @@ void bios_int10(void) {
 
 /* ------------------------------------------------------------------ real-mode interrupts via DPMI 0300h */
 void bios_real_int(int n, RmRegs *r) {
+  if (n == 0x66) { audio_int66(r); return; }
   Cpu saved = C;
   C.eax = r->eax; C.ebx = r->ebx; C.ecx = r->ecx; C.edx = r->edx; C.esi = r->esi & 0xffff; C.edi = r->edi & 0xffff; C.ebp = r->ebp;
   C.seg[0] = r->es; C.segbase[0] = (uint32_t)r->es << 4;

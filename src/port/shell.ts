@@ -7,6 +7,7 @@
 //
 // Independently authored; Apache-2.0.
 
+import { createAudioRing } from "./audio.ts";
 import { createFrameBuffer, createInputBuffer, FrameReader, InputWriter, scanBytes } from "./input.ts";
 import { BUILD, GAME, SAVES, getAll, put, remove, replaceAll } from "./store.ts";
 import type { GameSource, StartMessage, WorkerMessage } from "./worker.ts";
@@ -20,6 +21,10 @@ interface Status {
   guestMs: number;
   width: number;
   height: number;
+  /** AudioContext state, or "off" when sound could not be set up */
+  audio: string;
+  /** frames the guest has queued for playback so far */
+  audioFrames: number;
   log: string[];
 }
 
@@ -53,7 +58,7 @@ async function devJson<T>(path: string): Promise<T | null> {
 }
 
 export async function bootShell(root: HTMLElement): Promise<void> {
-  const status: Status = { state: "setup", frames: 0, guestMs: 0, width: 0, height: 0, log: [] };
+  const status: Status = { state: "setup", frames: 0, guestMs: 0, width: 0, height: 0, audio: "off", audioFrames: 0, log: [] };
   (window as unknown as { __moo2: Status }).__moo2 = status;
   const setState = (s: State) => {
     status.state = s;
@@ -177,6 +182,8 @@ export async function bootShell(root: HTMLElement): Promise<void> {
   };
 
   startBtn.onclick = async () => {
+    // created inside the click so that the browser lets it play
+    const actx = audioContext();
     startBtn.disabled = true;
     setState("loading");
     footer.textContent = "Loading…";
@@ -190,6 +197,17 @@ export async function bootShell(root: HTMLElement): Promise<void> {
       const worker = new Worker(new URL(workerFile, import.meta.url), { type: "module" });
       const frames = new FrameReader(frame);
       const writer = new InputWriter(input);
+      const audio = await startAudio(actx, import.meta.url.endsWith(".ts") ? "./audio-worklet.ts" : "./audio-worklet.js").catch((err: unknown) => {
+        console.warn("sound disabled:", err);
+        void actx?.close();
+        return null;
+      });
+      const audioPos = audio ? new Int32Array(audio.ring, 0, 4) : null;
+      const syncAudio = () => {
+        if (!audio) return;
+        status.audio = audio.ctx.state;
+        status.audioFrames = Atomics.load(audioPos!, 1);
+      };
       worker.onmessage = (ev: MessageEvent<WorkerMessage>) => {
         const m = ev.data;
         if (m.type === "status") {
@@ -202,6 +220,7 @@ export async function bootShell(root: HTMLElement): Promise<void> {
           status.log.push(m.message);
           if (status.log.length > 200) status.log.shift();
         } else if (m.type === "exit") {
+          void audio?.ctx.close();
           setState("exited");
           footer.textContent = `The game exited (code ${m.code}).`;
           worker.terminate();
@@ -216,11 +235,13 @@ export async function bootShell(root: HTMLElement): Promise<void> {
         setState("error");
         footer.textContent = `Worker failed: ${e.message}`;
       };
-      const msg: StartMessage = { type: "start", wasm, image, entry, game, saves, input, frame };
+      const msg: StartMessage = { type: "start", wasm, image, entry, game, saves, input, frame, audio: audio ? { ring: audio.ring, rate: audio.ctx.sampleRate } : undefined };
       worker.postMessage(msg, [wasm, image]);
       setup.hidden = true;
       setState("running");
       attachInput(canvas, writer, frames);
+      // browsers keep an AudioContext suspended until a user gesture on the page
+      if (audio) for (const t of ["mousedown", "keydown"]) canvas.addEventListener(t, () => void audio.ctx.resume());
       canvas.focus();
       const draw = () => {
         const f = frames.take(imageFor);
@@ -229,6 +250,7 @@ export async function bootShell(root: HTMLElement): Promise<void> {
           status.width = f.width;
           status.height = f.height;
         }
+        syncAudio();
         if (status.state === "running") requestAnimationFrame(draw);
       };
       requestAnimationFrame(draw);
@@ -239,6 +261,29 @@ export async function bootShell(root: HTMLElement): Promise<void> {
     }
   };
   root.dataset.ready = "1";
+}
+
+/** Sound output: an AudioContext at the guest mixer's preferred rate (22050 Hz) where the browser allows
+ * it, fed from a shared ring by an AudioWorklet. */
+function audioContext(): AudioContext | null {
+  try {
+    return new AudioContext({ sampleRate: 22050, latencyHint: "interactive" });
+  } catch {
+    try {
+      return new AudioContext({ latencyHint: "interactive" });
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function startAudio(ctx: AudioContext | null, worklet: string): Promise<{ ctx: AudioContext; ring: SharedArrayBuffer }> {
+  if (!ctx) throw new Error("no AudioContext");
+  await ctx.audioWorklet.addModule(new URL(worklet, import.meta.url));
+  const ring = createAudioRing(Math.round(ctx.sampleRate / 2));
+  const node = new AudioWorkletNode(ctx, "moo2-output", { numberOfInputs: 0, outputChannelCount: [2], processorOptions: { ring } });
+  node.connect(ctx.destination);
+  return { ctx, ring };
 }
 
 function attachInput(canvas: HTMLCanvasElement, input: InputWriter, frames: FrameReader): void {

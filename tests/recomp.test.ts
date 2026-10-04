@@ -257,7 +257,7 @@ test("emitted C compiles with the runtime and reproduces the program's results",
     writeFileSync(join(dir, "image.bin"), Buffer.concat(parts));
     writeFileSync(join(dir, "entry.txt"), `${image.entryEip.toString(16)} ${image.initialEsp.toString(16)}\n`);
     const gen = readdirSync(join(dir, "gen")).filter((f) => f.endsWith(".c")).map((f) => join(dir, "gen", f));
-    const rt = ["rt.c", "dos.c", "pc.c"].map((f) => join(ROOT, "runtime", f));
+    const rt = ["rt.c", "dos.c", "pc.c", "audio.c"].map((f) => join(ROOT, "runtime", f));
     const exe = join(dir, "host_test");
     execFileSync(cc, ["-O1", "-w", "-fno-strict-aliasing", `-I${join(ROOT, "runtime")}`, `-I${join(dir, "gen")}`, "-o", exe, ...gen, ...rt, join(ROOT, "tests/fixtures/host_test.c"), "-lm"], { stdio: "pipe" });
     const run = spawnSync(exe, [dir, at(data, "res").toString(16)], { encoding: "utf8", timeout: 30_000 });

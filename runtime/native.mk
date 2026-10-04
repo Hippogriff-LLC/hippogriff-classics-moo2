@@ -19,7 +19,7 @@ GEN_CFLAGS := -O1 -g0 -w -fno-strict-aliasing -I$(RT_DIR) -I$(GEN_DIR)
 RT_CFLAGS := -O1 -g -Wall -Wextra -Wno-unused-parameter -fno-strict-aliasing -I$(RT_DIR) -I$(GEN_DIR)
 
 GEN_OBJ := $(patsubst $(GEN_DIR)/%.c,$(OUT)/%.o,$(wildcard $(GEN_DIR)/*.c))
-RT_OBJ := $(addprefix $(OUT)/,rt.o dos.o pc.o host_native.o)
+RT_OBJ := $(addprefix $(OUT)/,rt.o dos.o pc.o audio.o host_native.o)
 
 $(OUT)/moo2-native: $(GEN_OBJ) $(RT_OBJ)
 	$(CC) -o $@ $^ -lm

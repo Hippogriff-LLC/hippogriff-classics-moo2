@@ -8,6 +8,7 @@
  *     --verbose       log service calls
  *     --trace-int     log every software interrupt
  *     --control FIFO  interactive: read commands from FIFO instead of a script (see control_command)
+ *     --wav FILE      record the sound output (16-bit stereo, 22050 Hz) as a WAV file
  *
  * The game directory is opened read-only; files the game creates or modifies go to the save directory,
  * which shadows the game directory. Independently authored; Apache-2.0. */
@@ -34,6 +35,8 @@ static long presented;
 static uint8_t last_frame[800 * 600];
 static uint8_t last_pal[768];
 static int last_w, last_h;
+static FILE *wav;
+static uint32_t wav_frames, wav_peak;
 
 /* ------------------------------------------------------------------ files */
 static int find_in(const char *dir, const char *name, char *out, size_t cap) {
@@ -204,6 +207,15 @@ static void load_script(const char *path) {
 
 __attribute__((noreturn)) static void finish(int code) {
   char p[1024];
+  if (wav) {
+    /* RIFF header with the final sizes */
+    uint32_t data = wav_frames * 4, h[11] = {0x46464952, 36 + data, 0x45564157, 0x20746d66, 16, 0x00020001, 22050,
+                                             22050 * 4, 0x00100004, 0x61746164, data};
+    fseek(wav, 0, SEEK_SET);
+    fwrite(h, 4, 11, wav);
+    fclose(wav);
+    fprintf(stderr, "[host] audio: %u frames (%.1f s), peak %u\n", wav_frames, wav_frames / 22050.0, wav_peak);
+  }
   if (last_w) {
     snprintf(p, sizeof p, "%s/last.ppm", frame_dir);
     write_ppm(p, last_frame, last_w, last_h, last_pal);
@@ -306,7 +318,15 @@ int host_poll_event(HostEvent *ev) {
 }
 
 int host_audio_rate(void) { return 22050; }
-void host_audio_write(const int16_t *frames, int count) { (void)frames; (void)count; }
+void host_audio_write(const int16_t *frames, int count) {
+  if (!wav) return;
+  for (int i = 0; i < count * 2; i++) {
+    uint32_t a = (uint32_t)(frames[i] < 0 ? -frames[i] : frames[i]);
+    if (a > wav_peak) wav_peak = a;
+  }
+  fwrite(frames, 4, (size_t)count, wav);
+  wav_frames += (uint32_t)count;
+}
 void host_log(const char *msg) { fprintf(stderr, "%s\n", msg); }
 void host_exit(int code) { finish(code); }
 
@@ -327,7 +347,7 @@ static uint8_t *read_all(const char *path, uint32_t *len) {
 int main(int argc, char **argv) {
   if (argc < 5) {
     fprintf(stderr, "usage: %s <build-dir> <game-dir> <save-dir> <frame-dir> [--ms N] [--every N] [--script F] "
-                    "[--realtime] [--verbose] [--trace-int] [--control FIFO]\n", argv[0]);
+                    "[--realtime] [--verbose] [--trace-int] [--control FIFO] [--wav F]\n", argv[0]);
     return 2;
   }
   const char *build = argv[1];
@@ -341,6 +361,10 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[i], "--verbose")) verbose = 1;
     else if (!strcmp(argv[i], "--trace-int")) trace_int = 1;
     else if (!strcmp(argv[i], "--control") && i + 1 < argc) control_path = argv[++i];
+    else if (!strcmp(argv[i], "--wav") && i + 1 < argc) {
+      if (!(wav = fopen(argv[++i], "wb"))) { fprintf(stderr, "cannot create %s\n", argv[i]); return 2; }
+      fseek(wav, 44, SEEK_SET);
+    }
     else { fprintf(stderr, "unknown option %s\n", argv[i]); return 2; }
   }
   char p[1024];

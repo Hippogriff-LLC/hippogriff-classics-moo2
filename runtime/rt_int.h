@@ -118,3 +118,6 @@ int dos_init(void);
 /* real-mode register structure for DPMI 0300h-0302h */
 typedef struct { uint32_t edi, esi, ebp, res, ebx, edx, ecx, eax; uint16_t flags, es, ds, fs, gs, ip, cs, sp, ss; } RmRegs;
 void bios_real_int(int n, RmRegs *r);
+/* virtual Miles digital sound driver (audio.c) */
+void audio_int66(RmRegs *r);
+void audio_advance(double ms);

@@ -24,7 +24,12 @@ These were made locally in private scratch space and are recorded here only as b
   uses for function discovery.
 * The program enters the Watcom CRT `int386()`/`int386x()` paths through generated `int N` stubs. These
   are the only replaced routines (`src/recomp/layout.ts`).
-* Sound goes through Miles AIL 3.x drivers, called as real-mode int 66h via DPMI 0300h.
+* Sound goes through Miles AIL 3.x drivers, called as real-mode int 66h via DPMI 0300h. The driver
+  function codes and the layouts of the driver header and the description and status tables that
+  `runtime/audio.c` serves were read from how the library code in the executable builds its calls and
+  uses the results (`_AIL_API_call_driver`, `_AIL_API_install_driver`, `_SS_construct_DIG_driver`,
+  `_SS_configure_buffers`, `_SS_serve`). No driver file code was used or reproduced; the driver files are
+  only checked for their 8-byte signature.
 * The VESA mode is 640x480x256 with banked (windowed) access. The mouse is used through int 33h with a
   0..1279 horizontal range.
 

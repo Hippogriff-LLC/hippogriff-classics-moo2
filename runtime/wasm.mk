@@ -33,7 +33,7 @@ RT_CFLAGS := $(TARGET_FLAGS) -O1 -Wall -Wextra -Wno-unused-parameter -fno-strict
 EXPORTS := moo2_start moo2_alloc moo2_scratch moo2_guest_ms moo2_frames moo2_debug_dump
 
 GEN_OBJ := $(patsubst $(GEN_DIR)/%.c,$(OUT)/gen/%.o,$(wildcard $(GEN_DIR)/*.c))
-RT_OBJ := $(addprefix $(OUT)/,rt.o dos.o pc.o host_wasm.o libc_wasm.o)
+RT_OBJ := $(addprefix $(OUT)/,rt.o dos.o pc.o audio.o host_wasm.o libc_wasm.o)
 
 $(OUT)/moo2.wasm: $(GEN_OBJ) $(RT_OBJ) $(ROOT)/tools/wasm/link.ts $(lastword $(MAKEFILE_LIST))
 	$(NODE) $(ROOT)/tools/wasm/link.ts -o $@ --stack $(STACK) $(addprefix --export ,$(EXPORTS)) $(GEN_OBJ) $(RT_OBJ)

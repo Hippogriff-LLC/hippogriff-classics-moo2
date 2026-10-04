@@ -181,6 +181,8 @@ async function main() {
     "--no-sandbox",
     "--disable-gpu",
     "--disable-extensions",
+    // the port's sound starts from a scripted click, which carries no user activation
+    "--autoplay-policy=no-user-gesture-required",
     "--window-size=1440,900",
     "about:blank",
   ], { stdio: ["ignore", "ignore", "pipe"] });
@@ -258,9 +260,13 @@ async function main() {
         await sleep(60);
         await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", code: "Escape", key: "Escape", windowsVirtualKeyCode: 27 });
       }
-      await waitGuest(25000);
+      const stMenu = await waitGuest(25000);
       await shot("02-port-main-menu");
       step("port-main-menu");
+      // the intro plays digitized sound through the virtual sound card; more frames than the ring holds
+      // means the page's AudioWorklet is consuming them
+      if (!(stMenu.audioFrames > 0)) throw new Error(`no sound output (audio=${stMenu.audio})`);
+      step("port-audio", `context=${stMenu.audio} framesQueued=${stMenu.audioFrames}`);
       // the New Game entry of the main menu, in guest screen coordinates (640x480)
       const pt = await ev(`const r = document.querySelector('[data-testid="port-canvas"]').getBoundingClientRect();
         return { x: r.left + r.width * 490 / 640, y: r.top + r.height * 228 / 480 };`);

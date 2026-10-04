@@ -23,7 +23,9 @@ Orion2.exe (user's copy)
         runtime/rt.c  memory, selectors, interrupt delivery, x87 model, diagnostics
         runtime/dos.c DOS int 21h, DOS/4GW-compatible DPMI int 31h, environment, files
         runtime/pc.c  PIT/PIC time base, int 8/9/16h, int 33h mouse, VGA DAC, VBE 1.2 banked 640x480x256
-  └─ src/port/ ──► browser: shell.ts (setup), worker.ts + host.ts (runs moo2.wasm), input.ts, store.ts
+        runtime/audio.c  virtual Miles AIL 3 digital (.DIG) driver: int 66h VDI calls, DMA double buffer
+  └─ src/port/ ──► browser: shell.ts (setup), worker.ts + host.ts (runs moo2.wasm), input.ts, store.ts,
+                    audio.ts + audio-worklet.ts (sound ring and AudioWorklet output)
 ```
 
 ## What was reverse engineered
@@ -45,6 +47,21 @@ Orion2.exe (user's copy)
 * **HLE overrides.** Only two routines are replaced (`layout.ts`): the Watcom CRT `int386()` and
   `int386x()` back ends, `_DoINTR_` and `__int386x_`. They build `int N` stubs and enter them with
   `push addr; ret`, which the static model cannot express. Everything else runs as translated code.
+* **Sound driver interface.** The Miles AIL 3.02 library is linked into the executable: its sample mixer
+  (`_SS_serve`, `_AILSSA_merge`), stream code and XMIDI sequencer all run as translated code. Only the
+  hardware layer sits outside, in real-mode driver files (`SB16.DIG`, `SBPRO2.MDI`, chosen by `DIG.INI`
+  and `MDI.INI`). The library copies the driver into DOS memory and points the int 66h real-mode vector at
+  it. It then calls it through DPMI 0300h with AX = function (300h init, 301h get info, 304h verify I/O,
+  305h/306h device init/shutdown, 401h start playback with CX = rate and DX = format, 402h stop) and the
+  arguments in BX/CX/DX/SI/DI. Function 301h returns two real-mode far pointers:
+  * a driver description table: supported formats, and per format the rate range, half-buffer size range
+    and sample flags;
+  * a status table: the two DMA half-buffers and the index of the half the card is playing.
+
+  The mixer reads that index on each timer service and refills the other half when it changes.
+  `runtime/audio.c` answers these calls as a virtual digital driver. It offers one 16-bit stereo signed
+  format, reports which half is playing as the guest clock consumes it at the programmed rate, and hands
+  each half to `host_audio_write`, resampled to the host rate. Music drivers (`.MDI`) are reported absent.
 
 ## What runs (verified with the operator-supplied installation)
 
@@ -52,6 +69,10 @@ The native host was driven interactively through `--control`, and the browser wa
 `tools/smoke.mjs --play`. Verified so far:
 
 * the Simtex/MicroProse intro and the main menu;
+* sound: the intro soundtrack and the main-menu music, which are digitized streams (`STREAM.LBX`), play
+  through the virtual sound driver. A native `--wav` capture of the first 30 s holds 20.7 s of
+  non-silent, correlated stereo audio starting when the intro does, with no discontinuities at the
+  half-buffer seams. In Chromium the AudioWorklet consumed over 330,000 frames by the main menu;
 * New Game setup, rendered in Chromium from `moo2.wasm`;
 * Continue (loads `SAVE10.GAM`), with the home-star accept;
 * research selection;
@@ -88,22 +109,25 @@ Run it in one of these ways:
   `node tools/smoke.mjs --dev-install <install> --dev-build $S/devbuild --play` boots the port in
   Chromium.
 * **Native.** `moo2-native $S/build <install> <save-dir> <frame-dir> [--ms N] [--every N] [--script F]
-  [--realtime] [--control FIFO]`. The save directory is copy-on-write over the installation. Frames are
+  [--realtime] [--control FIFO] [--wav F]`. The save directory is copy-on-write over the installation. Frames are
   written as PPM. `--control FIFO` takes line commands (`run MS`, `click X Y`, `move X Y`, `key SC`,
   `type TEXT`, `shot PATH`, `quit`) and replies `ok <ms>`. Guest time advances only on `run`/input, so
-  sessions are deterministic.
+  sessions are deterministic. `--wav F` records the sound output (22050 Hz stereo) and reports its
+  length and peak level on exit.
 * **Node through the browser host.** `node tools/wasm/run.ts $S/wasm/moo2.wasm $S/build <install> …`
   runs `moo2.wasm` through `src/port/host.ts`, so it can be compared against the native host.
 
 ## Approximations and known gaps
 
-* **Audio is silent.** The game drives Miles AIL 3.02 drivers (`SB16.DIG`, `SBPRO2.MDI`) through real-mode
-  int 66h calls via DPMI 0300h (functions 300h–306h), and the runtime does not implement that driver ABI.
-  The calls fail, the game continues without sound and a warning is logged. The AIL library is fully
-  symbolized, so a driver-level HLE (PCM mixing into `host_audio_write`, XMIDI through a synthesizer) is
-  the planned route.
+* **Sound.** Digitized sound (effects, speech and the streamed music) goes through the virtual digital
+  driver. The original mixer output reaches the host unchanged except for rate conversion: linear
+  interpolation from the hardware rate the library picks (22050 Hz nominal) to the host's rate. Only the intro
+  and menu streams have been verified (by capture analysis, not by ear). Individual effects during play
+  have not been checked one by one. XMIDI music through an `.MDI` driver is not emulated, because that synthesis lives in the driver
+  rather than the game. With the stock `MDI.INI` the library runs without a MIDI device. Browsers start
+  sound only after a user gesture, so the AudioContext is created by the Start click and resumed on input.
 * **File times.** int 21h AX=5700h returns a fixed date (1 Oct 1996) because `host.h` has no mtime
-  service. The only visible effect is on dates shown next to save slots.
+  service. No visible effect has been observed so far.
 * **Timing.** Virtual time charges a fixed cost per back-edge poll and per idle op, which is
   deterministic but not cycle-accurate. Real-time mode (the browser default) syncs to the host clock
   while the guest idles. Animation speed is close to the original but not measured against hardware.
@@ -117,7 +141,8 @@ Run it in one of these ways:
 
 ## What remains
 
-1. Miles DIG/MDI driver HLE for sound effects and music.
+1. Sound checks during play: individual effects in combat and the UI, and the volume settings. An `.MDI`
+   synthesizer only if a configuration that needs one turns up.
 2. A host mtime API for int 21h 5700h.
 3. Wider exercise: tactical combat, a full game to an ending, every race and setting, the reference
    screens. Each `rt_bad_call` hit becomes either an extra entry for `analyze` or a runtime fix.

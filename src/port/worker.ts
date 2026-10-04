@@ -9,6 +9,7 @@
 //
 // Independently authored; Apache-2.0.
 
+import { AudioRingWriter } from "./audio.ts";
 import { type GameFile, Moo2Host, frameToRgba, parseEntry } from "./host.ts";
 import { FrameWriter, InputReader } from "./input.ts";
 
@@ -23,6 +24,8 @@ export interface StartMessage {
   saves: [string, Uint8Array][];
   input: SharedArrayBuffer;
   frame: SharedArrayBuffer;
+  /** sound output ring and the rate the page plays it at; absent when the page has no audio */
+  audio?: { ring: SharedArrayBuffer; rate: number };
   verbose?: boolean;
 }
 
@@ -64,6 +67,7 @@ async function start(m: StartMessage): Promise<void> {
   const frame = new FrameWriter(m.frame);
   const game = new Map<string, GameFile>();
   for (const g of m.game) game.set(g.name.toUpperCase(), "blob" in g ? blobFile(g.blob) : urlFile(g.url, g.size));
+  const audio = m.audio ? new AudioRingWriter(m.audio.ring) : null;
   let lastStatus = 0;
   const host: Moo2Host = new Moo2Host({
     files: {
@@ -73,6 +77,8 @@ async function start(m: StartMessage): Promise<void> {
     },
     realtime: true,
     verbose: m.verbose,
+    audioRate: m.audio?.rate,
+    audioWrite: audio ? (samples) => void audio.write(samples) : undefined,
     present(px, w, h, pitch, pal) {
       const out = frame.begin(w, h);
       if (out) {

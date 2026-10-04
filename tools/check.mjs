@@ -15,7 +15,7 @@ process.on("warning", (w) => {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(ROOT, "src");
-const SKIP_EVAL = new Set(["main.ts", join("port", "main.ts"), join("port", "worker.ts")]);
+const SKIP_EVAL = new Set(["main.ts", join("port", "main.ts"), join("port", "worker.ts"), join("port", "audio-worklet.ts")]);
 
 async function* walk(dir) {
   for (const ent of await readdir(dir, { withFileTypes: true })) {

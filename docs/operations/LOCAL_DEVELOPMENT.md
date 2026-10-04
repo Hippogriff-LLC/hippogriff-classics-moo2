@@ -60,6 +60,9 @@ node tools/smoke.mjs --dev-install /path/to/installation --dev-build /private/de
 ```
 
 The server always sends COOP/COEP/CORP headers, because the port worker needs `SharedArrayBuffer`.
+Sound plays through an AudioWorklet that starts with the Start click. `tools/smoke.mjs` launches
+Chromium with `--autoplay-policy=no-user-gesture-required`. With `--play` it also checks that the guest
+has produced sound by the time the main menu appears.
 Screenshots of the running port show original artwork. Keep them out of Git and out of exports.
 
 ## Browser smoke test
